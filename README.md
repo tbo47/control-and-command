@@ -2,7 +2,7 @@
 
 An interactive and intuitive P&ID (Piping and Instrumentation Diagram) editor designed for your factory's needs.
 
-[**Live Demo**](https://tbo47.github.io/command-and-control/) | [**Icons Used**](https://github.com/tbo47/open-pid-icons)
+[**Live Demo**](https://tbo47.github.io/control-and-command/) | [**Icons Used**](https://github.com/tbo47/open-pid-icons)
 
 ### Key Features:
 

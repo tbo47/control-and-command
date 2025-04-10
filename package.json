@@ -1,22 +1,22 @@
 {
-    "name": "command-and-control",
+    "name": "control-and-command",
     "version": "0.1.0",
     "type": "module",
     "author": "tbo47",
     "description": "A control and command panel (aka P&ID editor).",
     "keywords": [
         "P&ID",
-        "command-and-control",
+        "control-and-command",
         "tbo47"
     ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/tbo47/command-and-control.git"
+        "url": "git+https://github.com/tbo47/control-and-command.git"
     },
     "scripts": {
         "dev": "vite",
-        "build": "tsc && vite build --base /command-and-control/ && rm -rf ../tbo47.github.io/command-and-control && cp -r dist ../tbo47.github.io/command-and-control",
-        "prepublish": "rm cac-editor* ; tsc -p tsconfig.prepublish.json",
+        "build": "tsc && vite build --base /control-and-command/ && rm -rf ../tbo47.github.io/control-and-command && cp -r dist ../tbo47.github.io/control-and-command",
+        "prepublish2": "rm cac-editor* ; tsc -p tsconfig.prepublish.json",
         "preview": "vite preview"
     },
     "dependencies": {
@@ -24,7 +24,7 @@
     },
     "devDependencies": {
         "typescript": "~5.8.3",
-        "vite": "^6.2.5"
+        "vite": "^6.2.6"
     },
     "files": [
         "./cac-editor.js",
