@@ -3,7 +3,7 @@
     "version": "0.1.0",
     "type": "module",
     "author": "tbo47",
-    "description": "A command and control panel (aka P&ID editor).",
+    "description": "A control and command panel (aka P&ID editor).",
     "keywords": [
         "P&ID",
         "command-and-control",

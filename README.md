@@ -1,4 +1,4 @@
-# Command and Control Whiteboard
+# Control and Command Whiteboard
 
 An interactive and intuitive P&ID (Piping and Instrumentation Diagram) editor designed for your factory's needs.
 
