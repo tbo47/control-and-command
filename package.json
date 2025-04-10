@@ -1,0 +1,35 @@
+{
+    "name": "command-and-control",
+    "version": "0.1.0",
+    "type": "module",
+    "author": "tbo47",
+    "description": "A command and control panel (aka P&ID editor).",
+    "keywords": [
+        "P&ID",
+        "command-and-control",
+        "tbo47"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/tbo47/command-and-control.git"
+    },
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc && vite build --base /command-and-control/ && rm -rf ../tbo47.github.io/command-and-control && cp -r dist ../tbo47.github.io/command-and-control",
+        "prepublish": "rm cac-editor* ; tsc -p tsconfig.prepublish.json",
+        "preview": "vite preview"
+    },
+    "dependencies": {
+        "konva-es": "^9.3.20"
+    },
+    "devDependencies": {
+        "typescript": "~5.8.3",
+        "vite": "^6.2.5"
+    },
+    "files": [
+        "./cac-editor.js",
+        "./cac-editor.d.ts"
+    ],
+    "types": "./cac-editor.d.ts",
+    "license": "MIT"
+}
