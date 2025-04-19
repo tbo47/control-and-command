@@ -25,3 +25,4 @@ dist-ssr
 
 cac-editor.js
 cac-editor.d.ts
+package-lock.json

@@ -1,5 +1,6 @@
 import { Group } from 'konva-es/lib/Group'
 import { Layer } from 'konva-es/lib/Layer'
+import { Shape } from 'konva-es/lib/Shape'
 import { Circle } from 'konva-es/lib/shapes/Circle'
 import { Line, LineConfig } from 'konva-es/lib/shapes/Line'
 import { Path } from 'konva-es/lib/shapes/Path'
@@ -9,7 +10,7 @@ import { Transformer } from 'konva-es/lib/shapes/Transformer'
 import { Stage, StageConfig, stages } from 'konva-es/lib/Stage'
 import { Vector2d } from 'konva-es/lib/types'
 
-const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+export const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0
 
 export type PIDIconType =
     | 'valve'
@@ -29,6 +30,10 @@ export interface IPidAnchor {
     y: number
 }
 
+/**
+ * Defines the structure of a PID shape.
+ * It's readonly.
+ */
 export interface IPidShape {
     name: string
     path: string
@@ -58,8 +63,11 @@ interface IConnector {
 
 const PID_DATASET_URL = 'https://raw.githubusercontent.com/tbo47/open-pid-icons/refs/heads/main/open-pid-icons.json'
 
-export const fetchPidIconSet = async () => {
-    const response = await fetch(PID_DATASET_URL)
+/**
+ * Fetches the PID icons from https://github.com/tbo47/open-pid-icons
+ */
+export const fetchPidIconSet = async (url = PID_DATASET_URL) => {
+    const response = await fetch(url)
     const pidIconSet = (await response.json()) as IPidIconSet
     pidIconSet.data.forEach((item: IPidShape) => {
         item.anchors = item.anchors || []
@@ -73,8 +81,8 @@ export const fetchPidIconSet = async () => {
 export const P = {
     anchor: {
         color: 'lightgray',
-        radius: isTouchDevice ? 10 : 5,
-        radiusOver: isTouchDevice ? 22 : 7,
+        radius: isTouchDevice ? 12 : 5,
+        radiusOver: isTouchDevice ? 40 : 9,
     },
     shapePathParams: {
         stroke: 'black',
@@ -105,12 +113,8 @@ export class CacEditor {
     private layer: Layer
     private tr: Transformer
 
-    constructor() {
-        this.stage = new Stage({
-            container: 'app', // id of container <div>
-            width: window.innerWidth,
-            height: window.innerHeight - 40,
-        })
+    constructor(config: CacEditorConfig) {
+        this.stage = new Stage(config)
         this.layer = new Layer()
         this.stage.add(this.layer)
         this.tr = new Transformer({
@@ -132,32 +136,23 @@ export class CacEditor {
         this.init()
     }
 
-    #createAnchorShapes(valve: IPidShape, icon: Path) {
+    #createAnchorShapes(pidShape: IPidShape, icon: Path) {
         this.#cleanAnchorShapes()
         const { x, y } = icon.getClientRect({ relativeTo: this.layer })
-        return valve.anchors.map((anchor, anchorIndex) => {
+        return pidShape.anchors.map((anchor, anchorIndex) => {
             const anchorShape = new Circle({
                 x: anchor.x + x,
                 y: anchor.y + y,
                 radius: P.anchor.radius,
                 fill: P.anchor.color,
-                name: 'anchor',
+                name: 'cacAnchor',
             })
             anchorShape.on('mouseover touchover', () => anchorShape.radius(P.anchor.radiusOver))
             anchorShape.on('mouseout touchout', () => anchorShape.radius(P.anchor.radius))
             anchorShape.on('mouseup touchend', () => {
-                const line = this.layer.findOne('.currentline') as Line | undefined
-                if (line) {
-                    const pos = anchorShape.absolutePosition()
-                    generatePoints(line, pos)
-                    line.name('connector')
-                    this.#cleanAnchorShapes()
-                    const anchorIndexStart = line.getAttr('anchorIndexStart') as number
-                    // const pidStart = line.getAttr('pidShapeStart') as IPidShape
-                    const shapeStart = line.getAttr('pathStart') as Path
-                    this.#addConnectorToPath(icon, line, anchorIndex, 'end')
-                    this.#addConnectorToPath(shapeStart, line, anchorIndexStart, 'start')
-                }
+                const pos = anchorShape.absolutePosition()
+                const line = this.#endConnectingLine(pos)
+                if (line) this.#addConnectorToPath(icon, line, anchorIndex, 'end')
             })
             anchorShape.on('mousedown touchstart', () => {
                 const line = this.layer.findOne('.currentline') as Line | undefined
@@ -168,8 +163,8 @@ export class CacEditor {
                         ...P.lineParams,
                         name: 'currentline',
                     })
-                    newLine.setAttr('anchorIndexStart', anchorIndex)
-                    newLine.setAttr('pidShapeStart', valve)
+                    newLine.setAttr('cacAnchorIndexStart', anchorIndex)
+                    newLine.setAttr('pidShapeStart', pidShape)
                     newLine.setAttr('pathStart', icon)
                     this.layer.add(newLine)
                 }
@@ -180,24 +175,39 @@ export class CacEditor {
         })
     }
 
+    #endConnectingLine(pos: Vector2d) {
+        const line = this.layer.findOne('.currentline') as Line | undefined
+        if (line) {
+            generatePoints(line, pos)
+            line.name('cacConnectorTwoPidShape')
+            this.#cleanAnchorShapes()
+            const anchorIndexStart = line.getAttr('cacAnchorIndexStart') as number
+            // const pidStart = line.getAttr('pidShapeStart') as IPidShape
+            const shapeStart = line.getAttr('pathStart') as Path
+            this.#addConnectorToPath(shapeStart, line, anchorIndexStart, 'start')
+        }
+        return line
+    }
+
     #addConnectorToPath(shape: Path, line: Line, anchorIndex: number, type: 'start' | 'end') {
         if (!shape.getAttr('connectors')) shape.setAttr('connectors', [])
         shape.getAttr('connectors').push({ line, anchorIndex, shape, type } as IConnector)
     }
 
     #cleanAnchorShapes() {
-        this.layer.find('.anchor').map((shape) => shape.destroy())
+        this.layer.find('.cacAnchor').forEach((shape) => shape.destroy())
     }
 
-    addShape(valve: IPidShape, x: number, y: number) {
+    addShape(pidShape: IPidShape, x: number, y: number) {
         const group = new Group({ x, y, draggable: true })
-        const icon = new Path({ data: valve.path, name: valve.name, ...P.shapePathParams })
+        const icon = new Path({ data: pidShape.path, name: 'pidshapename', ...P.shapePathParams })
+        icon.setAttr('pidShape', pidShape)
         group.on('click tap', () => {
             this.tr.nodes([])
-            this.#createAnchorShapes(valve, icon)
+            this.#createAnchorShapes(pidShape, icon)
         })
         group.add(icon)
-        const text = new Text({ text: valve.name, ...P.textParams })
+        const text = new Text({ text: pidShape.name, ...P.textParams })
         group.add(text)
         {
             const { x, y, width, height } = icon.getClientRect({ relativeTo: group })
@@ -214,17 +224,12 @@ export class CacEditor {
         group.on('mouseover touchmove', (e) => {
             const line = this.layer.findOne('.currentline') as Line | undefined
             if (line) {
-                this.#createAnchorShapes(valve, icon)
+                this.#createAnchorShapes(pidShape, icon)
             } else {
                 e.target.getStage()!.container().style.cursor = 'move'
             }
         })
-        group.on('mousedown', () => this.#cleanAnchorShapes())
-        group.on('dblclick dbltap', () => {
-            this.#cleanAnchorShapes()
-            this.tr.nodes([group])
-            group.moveToTop()
-        })
+        group.on('mousedown touchstart', () => this.#cleanAnchorShapes())
         group.on('mouseout touchout', (e) => {
             e.target.getStage()!.container().style.cursor = 'default'
         })
@@ -233,7 +238,7 @@ export class CacEditor {
             if (!connectors) return
             connectors.forEach((c: IConnector) => {
                 const g = group.absolutePosition()
-                const anchor = valve.anchors[c.anchorIndex]
+                const anchor = pidShape.anchors[c.anchorIndex]
                 g.x = g.x + anchor.x
                 g.y = g.y + anchor.y
                 // c.line.points([c.anchor.x(), c.anchor.y(), ...generatePoints(c.line, c.anchor.absolutePosition())])
@@ -249,8 +254,71 @@ export class CacEditor {
                 }
             })
         })
+        group.on('dragend', () => {
+            this.#fire()
+        })
         this.layer.add(group)
         return group
+    }
+
+    #eventHandler: (() => void)[] = []
+    #fire() {
+        this.#eventHandler.forEach((callback) => callback())
+    }
+    /**
+     * This method allows you to register a callback function that will be called whenever the canvas is changed.
+     * This is useful for updating the state of your application or saving the current state of the canvas.
+     * @param callback - The callback function to be called on change.
+     */
+    onChange(callback: () => void) {
+        this.#eventHandler.push(callback)
+    }
+
+    #export() {
+        const shapes = this.layer.find('.pidshapename')
+        return shapes.map((shape) => {
+            const pidShape = shape.getAttr('pidShape') as IPidShape
+            const position = shape.absolutePosition()
+            return { pidShape, position }
+        })
+    }
+
+    exportJson() {
+        return this.#export()
+    }
+
+    importJson(data: { pidShape: IPidShape; position: Vector2d }[] | null) {
+        if (!data) return
+        // this.layer.destroyChildren()
+        data.forEach((item) => {
+            const { pidShape, position } = item
+            this.addShape(pidShape, position.x, position.y)
+            /*
+            const group = this.addShape(pidShape, position.x, position.y)
+            const icon = group.findOne('.pidshapename') as Path
+            const connectors = pidShape.anchors.map((anchor, anchorIndex) => {
+                return { line: new Line(), anchorIndex, shape: icon, type: 'start' }
+            })
+            icon.setAttr('connectors', connectors)
+            */
+        })
+        this.layer.draw()
+    }
+
+    #createEmtpyShape(pos: Vector2d) {
+        const emptyEnd: IPidShape = {
+            name: '',
+            anchors: [
+                { type: 'in-out', x: 0, y: 7 },
+                { type: 'in-out', x: 14, y: 7 },
+            ],
+            path: 'm 0 0 a 5 5 0 0 1 14 0 a 5 5 0 0 1 -14 0',
+            height: 10,
+            width: 10,
+            type: 'valve',
+        }
+        const group = this.addShape(emptyEnd, pos.x, pos.y)
+        return group.children.find((c) => c.attrs.data) as Path
     }
 
     init() {
@@ -258,6 +326,13 @@ export class CacEditor {
             if (e.target === this.stage) {
                 this.tr.nodes([])
                 this.#cleanAnchorShapes()
+                const pos = this.stage.getPointerPosition()
+                if (!pos) this.layer.findOne('.currentline')?.destroy()
+                else if (this.layer.findOne('.currentline')) {
+                    const line = this.#endConnectingLine(pos)
+                    const emptyEnd = this.#createEmtpyShape(pos)
+                    if (line) this.#addConnectorToPath(emptyEnd, line, 0, 'end')
+                }
             }
         })
         this.layer.add(this.tr)
@@ -268,6 +343,84 @@ export class CacEditor {
             const line = this.layer.findOne('.currentline') as Line | undefined
             if (line) {
                 generatePoints(line, pos)
+            }
+        })
+        initRightClickMenu(
+            this.stage,
+            () => {
+                this.tr.nodes([])
+                this.#cleanAnchorShapes()
+            },
+            (s: Shape) => {
+                const group = s.getParent() as Group
+                group?.children
+                    .find((c) => c.attrs.connectors)
+                    ?.attrs.connectors.map((c: IConnector) => {
+                        c.line.destroy()
+                    })
+                group?.destroy()
+                this.#cleanAnchorShapes()
+            },
+            (s: Shape) => {
+                const group = s.getParent() as Group
+                this.#cleanAnchorShapes()
+                this.tr.nodes([group])
+                group.moveToTop()
+            }
+        )
+    }
+
+    /**
+     * Initializes a menu with icons for the user to select from.
+     */
+    initToolboxMenu(conf: { container: string; iconSet: IPidIconSet }) {
+        const menuEle = document.querySelector(conf.container)
+        if (!menuEle) throw new Error(`Element with selector "${conf.container}" not found`)
+
+        const menuContainer = document.createElement('div')
+        menuContainer.className = 'cac-menu-container'
+        document.body.appendChild(menuContainer)
+
+        conf.iconSet.data.map((icon) => {
+            const iconElement = document.createElement('div')
+            iconElement.className = 'menu-element'
+            const svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+            svgElement.setAttribute('viewBox', `0 0 ${icon.width + 2} ${icon.height + 1}`)
+            svgElement.setAttribute('width', icon.width.toString())
+            svgElement.setAttribute('height', icon.height.toString())
+            svgElement.setAttribute('fill', 'none')
+            svgElement.setAttribute('stroke', P.shapePathParams.stroke)
+            svgElement.setAttribute('stroke-linecap', P.shapePathParams.strokeLineCap)
+            svgElement.setAttribute('stroke-width', P.shapePathParams.strokeWidth.toString())
+
+            const pathElement = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+            pathElement.setAttribute('d', icon.path)
+
+            svgElement.appendChild(pathElement)
+            const nameElement = document.createElement('span')
+            nameElement.className = 'icon-name'
+            nameElement.textContent = icon.name
+            iconElement.appendChild(svgElement)
+            iconElement.appendChild(nameElement)
+
+            iconElement.addEventListener('mousedown', (event) => {
+                menuContainer.style.display = 'none'
+                const { x, y } = event
+                this.addShape(icon, x, y)
+                this.#fire()
+            })
+
+            menuContainer.appendChild(iconElement)
+        })
+
+        menuEle.addEventListener('click', () => {
+            const isMenuVisible = menuContainer.style.display === 'block'
+            menuContainer.style.display = isMenuVisible ? 'none' : 'block'
+        })
+
+        document.addEventListener('click', (event: any) => {
+            if (!menuContainer.contains(event.target) && !menuEle.contains(event.target)) {
+                menuContainer.style.display = 'none'
             }
         })
     }
@@ -291,3 +444,82 @@ window.addEventListener('resize', () => {
     // TODO
     // go()
 })
+
+export const initRightClickMenu = (
+    stage: Stage,
+    onShowMenu: () => void,
+    onDelete: (s: Shape) => void,
+    onResize: (s: Shape) => void
+) => {
+    let currentShape: Shape | undefined
+    const menuNode = document.createElement('div')
+    menuNode.id = 'menu'
+    menuNode.style.display = 'none'
+    menuNode.style.position = 'absolute'
+    menuNode.style.width = '160px'
+    menuNode.style.backgroundColor = 'white'
+    menuNode.style.boxShadow = '0 0 5px grey'
+    menuNode.style.borderRadius = '3px'
+
+    const resizeButton = document.createElement('button')
+    resizeButton.textContent = 'Resize and Rotate'
+    resizeButton.style.width = '100%'
+    resizeButton.style.backgroundColor = 'white'
+    resizeButton.style.border = 'none'
+    resizeButton.style.margin = '0'
+    resizeButton.style.padding = '10px'
+
+    const deleteButton = document.createElement('button')
+    deleteButton.textContent = 'Delete'
+    deleteButton.style.width = '100%'
+    deleteButton.style.backgroundColor = 'white'
+    deleteButton.style.border = 'none'
+    deleteButton.style.margin = '0'
+    deleteButton.style.padding = '10px'
+
+    resizeButton.addEventListener('mouseover', () => {
+        resizeButton.style.backgroundColor = '#f3f4f7'
+    })
+    resizeButton.addEventListener('mouseout', () => {
+        resizeButton.style.backgroundColor = 'white'
+    })
+    resizeButton.addEventListener('click', () => {
+        onResize(currentShape!)
+        menuNode.style.display = 'none'
+    })
+
+    deleteButton.addEventListener('mouseover', () => {
+        deleteButton.style.backgroundColor = '#f3f4f7'
+    })
+    deleteButton.addEventListener('mouseout', () => {
+        deleteButton.style.backgroundColor = 'white'
+    })
+    deleteButton.addEventListener('click', () => {
+        onDelete(currentShape!)
+        menuNode.style.display = 'none'
+    })
+
+    menuNode.appendChild(resizeButton)
+    menuNode.appendChild(deleteButton)
+    document.body.appendChild(menuNode)
+
+    window.addEventListener('click', () => (menuNode.style.display = 'none'))
+
+    stage.on('contextmenu dbltap', (e) => {
+        onShowMenu()
+        e.evt.preventDefault()
+        if (e.target === stage) return
+        currentShape = e.target as Shape
+        menuNode.style.display = 'initial'
+        const containerRect = stage.container().getBoundingClientRect()
+        menuNode.style.top = containerRect.top + stage.getPointerPosition()!.y + 4 + 'px'
+        menuNode.style.left = containerRect.left + stage.getPointerPosition()!.x + 4 + 'px'
+    })
+}
+
+export const CAC_TIPS = [
+    'You can add icons from the left menu',
+    isTouchDevice ? 'Double tap icons to edit them' : 'Right click icons to edit them',
+    'You can drag icons on the whiteboard',
+    // 'Press Ctrl + Z to undo your last action',
+]

@@ -3,10 +3,10 @@
     "version": "0.1.0",
     "type": "module",
     "author": "tbo47",
-    "description": "A control and command panel (aka P&ID editor).",
+    "description": "A control and command whiteboard (aka P&ID editor).",
     "keywords": [
         "P&ID",
-        "control-and-command",
+        "control and command",
         "tbo47"
     ],
     "repository": {
@@ -24,7 +24,7 @@
     },
     "devDependencies": {
         "typescript": "~5.8.3",
-        "vite": "^6.2.6"
+        "vite": "^6.3.2"
     },
     "files": [
         "./cac-editor.js",
